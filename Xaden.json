@@ -1,1 +1,8 @@
-
+[
+  {
+    "id": 744,
+    "name": "Wurst Client",
+    "cover": "{COVER_URL}/dc.png",
+    "url": "https://cdn.jsdelivr.net/gh/X-NOBER/stuff@main/files/wurstclient.html"
+  },
+]
