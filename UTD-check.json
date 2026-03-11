@@ -1,1 +1,7 @@
-
+{
+  "isOpen": true,
+  "closeMessage": "Frog Nexus is closed. Check the Discord",
+  "latestVersion": 1.0,
+  "updateMessage": "You have an old version of this website please update file. Check the Discord",
+  "discordLink": "https://discord.gg/ATdpDupPV2"
+}
