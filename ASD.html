@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FROGV2</title>
+
+<style>
+body{
+    margin:0;
+    background:#111;
+    color:white;
+    font-family:Arial,sans-serif;
+}
+
+header{
+    padding:20px;
+    text-align:center;
+}
+
+#searchBar{
+    width:90%;
+    max-width:700px;
+    padding:12px;
+    font-size:16px;
+    border:none;
+    border-radius:8px;
+}
+
+#compressedBtn{
+    margin-top:10px;
+    padding:10px 16px;
+    border:none;
+    border-radius:8px;
+    cursor:pointer;
+}
+
+#gameList{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
+    gap:12px;
+    padding:20px;
+}
+
+.game{
+    background:#1c1c1c;
+    border-radius:10px;
+    overflow:hidden;
+    cursor:pointer;
+    transition:.2s;
+}
+
+.game:hover{
+    transform:translateY(-2px);
+}
+
+.game img{
+    width:100%;
+    height:140px;
+    object-fit:cover;
+}
+
+.game.compact img{
+    display:none;
+}
+
+.gameName{
+    padding:12px;
+    text-align:center;
+}
+
+#iframeContainer{
+    position:fixed;
+    inset:0;
+    display:none;
+    background:black;
+    z-index:9999;
+}
+
+#zoneFrame{
+    width:100%;
+    height:100%;
+    border:none;
+}
+
+#gameMenu{
+    position:absolute;
+    top:15px;
+    right:15px;
+    z-index:10000;
+}
+
+#menuButton{
+    padding:10px 15px;
+    cursor:pointer;
+}
+
+#menuDropdown{
+    display:none;
+    margin-top:5px;
+    background:#222;
+    border-radius:8px;
+    overflow:hidden;
+}
+
+#menuDropdown button{
+    display:block;
+    width:100%;
+    border:none;
+    background:#222;
+    color:white;
+    padding:10px;
+    cursor:pointer;
+    text-align:left;
+}
+
+#menuDropdown button:hover{
+    background:#333;
+}
+</style>
+</head>
+<body>
+
+<header>
+    <h1>FROG: THE RETURN</h1>
+
+    <input
+        id="searchBar"
+        placeholder="Search games..."
+        oninput="filterGames()">
+
+    <br>
+
+    <button
+        id="compressedBtn"
+        onclick="toggleCompressed()">
+        Compressed Mode: OFF
+    </button>
+</header>
+
+<div id="gameList"></div>
+
+<div id="iframeContainer">
+
+    <div id="gameMenu">
+
+        <button
+            id="menuButton"
+            onclick="toggleMenu()">
+            ☰
+        </button>
+
+        <div id="menuDropdown">
+            <button onclick="closeGame()">Close Game</button>
+            <button onclick="reloadGame()">Reload Game</button>
+            <button onclick="openBlank()">Open in about:blank</button>
+        </div>
+
+    </div>
+
+    <iframe
+        id="zoneFrame"
+        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads">
+    </iframe>
+
+</div>
+
+<script>
+    
+(function () {
+
+    function blockLeave(e) {
+        e.preventDefault();
+        e.returnValue = "";
+        return "";
+    }
+
+    // Always active
+    window.addEventListener("beforeunload", blockLeave);
+
+})();
+
+
+const ZONES_URL =
+"https://cdn.jsdelivr.net/gh/freebuisness/assets@latest/zones.json";
+
+const COVER_BASE =
+"https://cdn.jsdelivr.net/gh/freebuisness/covers@latest";
+
+const HTML_BASE =
+"https://cdn.jsdelivr.net/gh/freebuisness/html@latest";
+
+const ABMINN_LIST =
+"https://cdn.jsdelivr.net/gh/abminn/Nexus-Games@latest/Games/all.js";
+
+const ABMINN_BASE =
+"https://cdn.jsdelivr.net/gh/abminn/Nexus-Games@latest/Games/";
+
+const ABMINN_IMAGES =
+"https://cdn.jsdelivr.net/gh/abminn/Nexus-Games@latest/Images/";
+
+const XADEN_JSON =
+"https://cdn.jsdelivr.net/gh/X-NOBER/My-My-What-else-can-you-do-with-those-shadows-Xaden-@main/Xadenv4.json";
+
+let games = [];
+let currentGame = null;
+
+let compressedMode =
+localStorage.getItem("compressedMode") === "true";
+
+document.getElementById("compressedBtn").textContent =
+`Compressed Mode: ${compressedMode ? "ON" : "OFF"}`;
+
+function parseGameList(text){
+
+    const match = text.match(/\[([\s\S]*?)\]/);
+
+    if(!match) return [];
+
+    return match[1]
+        .split(",")
+        .map(x=>x.trim().replace(/^["']|["']$/g,""))
+        .filter(Boolean);
+}
+
+async function loadGames(){
+
+    const allGames = [];
+
+    try{
+
+        const zones =
+        await fetch(ZONES_URL)
+        .then(r=>r.json());
+
+        zones.forEach(game=>{
+
+            allGames.push({
+
+                name: game.name,
+
+                cover:
+                game.cover
+                ? game.cover.replace(
+                    "{COVER_URL}",
+                    COVER_BASE
+                  )
+                : null,
+
+                url:
+                game.url.replace(
+                    "{HTML_URL}",
+                    HTML_BASE
+                )
+            });
+
+        });
+
+    }catch(err){
+        console.error(err);
+    }
+
+    try {
+
+    const xadenGames =
+        await fetch(XADEN_JSON)
+        .then(r => r.json());
+
+    xadenGames.forEach(game => {
+
+        allGames.push({
+
+            name: game.name,
+
+            cover: game.cover,
+
+            url: game.url,
+
+            source: "xaden"
+
+        });
+
+    });
+
+    } catch(err) {
+
+        console.error(
+            "Failed to load Xaden games",
+            err
+        );
+
+    }
+
+    try{
+
+        const text =
+        await fetch(ABMINN_LIST)
+        .then(r=>r.text());
+
+        const names =
+        parseGameList(text);
+
+        names.forEach(name=>{
+
+            allGames.push({
+
+                name,
+
+                cover:
+                ABMINN_IMAGES +
+                encodeURIComponent(name) +
+                ".png",
+
+                url:
+                ABMINN_BASE +
+                encodeURIComponent(name) +
+                "/index.html"
+
+            });
+
+        });
+
+    }catch(err){
+        console.error(err);
+    }
+
+    games = allGames
+    .filter(game => !game.name.startsWith("[!]"))
+    .sort((a,b) => a.name.localeCompare(b.name));
+
+    renderGames(games);
+}
+
+function renderGames(list){
+
+    const container =
+    document.getElementById("gameList");
+
+    container.innerHTML = "";
+
+    list.forEach(game=>{
+
+        const div =
+        document.createElement("div");
+
+        div.className =
+        "game" +
+        (compressedMode ? " compact" : "");
+
+        div.innerHTML =
+        compressedMode
+        ? `
+        <div class="gameName">
+            ${game.name}
+        </div>
+        `
+        : `
+        <img
+            src="${game.cover || 'https://placehold.co/400x225'}"
+            loading="lazy">
+
+        <div class="gameName">
+            ${game.name}
+        </div>
+        `;
+
+        div.onclick =
+        ()=>openGame(game);
+
+        container.appendChild(div);
+    });
+}
+
+async function openGame(game){
+
+    currentGame = game;
+
+    try{
+
+        const response =
+        await fetch(game.url);
+
+        let html =
+        await response.text();
+
+        const baseUrl =
+        game.url.substring(
+            0,
+            game.url.lastIndexOf("/") + 1
+        );
+
+        if(!html.includes("<base")){
+
+            html =
+            html.replace(
+                /<head([^>]*)>/i,
+                `<head$1><base href="${baseUrl}">`
+            );
+        }
+
+        document
+        .getElementById("iframeContainer")
+        .style.display = "block";
+
+        document
+        .getElementById("zoneFrame")
+        .srcdoc = html;
+
+    }catch(err){
+
+        console.error(err);
+
+        document
+        .getElementById("iframeContainer")
+        .style.display = "block";
+
+        document
+        .getElementById("zoneFrame")
+        .src = game.url;
+    }
+}
+
+function closeGame(){
+
+    const frame =
+    document.getElementById("zoneFrame");
+
+    frame.srcdoc = "";
+    frame.src = "about:blank";
+
+    document
+    .getElementById("iframeContainer")
+    .style.display = "none";
+
+    currentGame = null;
+
+    toggleMenu(false);
+}
+
+function reloadGame(){
+
+    if(currentGame){
+        openGame(currentGame);
+    }
+}
+
+async function openBlank(){
+
+    if(!currentGame) return;
+
+    const win = window.open("about:blank","_blank");
+
+    if(!win){
+        alert("Popup blocked");
+        return;
+    }
+
+    try{
+
+        const html =
+            await fetch(currentGame.url)
+            .then(r => r.text());
+
+        win.document.open();
+
+        win.document.write(`
+<!DOCTYPE html>
+<html>
+<head>
+<title>Google Classroom</title>
+
+<link rel="icon"
+href="https://ssl.gstatic.com/classroom/favicon.png">
+
+<style>
+html,body{
+    margin:0;
+    width:100%;
+    height:100%;
+}
+</style>
+</head>
+<body>
+${html}
+</body>
+</html>
+        `);
+
+        win.document.close();
+
+    }catch{
+
+        win.document.title = "Google Classroom";
+
+        const icon =
+            win.document.createElement("link");
+
+        icon.rel = "icon";
+        icon.href =
+            "https://ssl.gstatic.com/classroom/favicon.png";
+
+        win.document.head.appendChild(icon);
+
+        win.location = currentGame.url;
+    }
+}
+
+function toggleCompressed(){
+
+    compressedMode =
+    !compressedMode;
+
+    localStorage.setItem(
+        "compressedMode",
+        compressedMode
+    );
+
+    document
+    .getElementById("compressedBtn")
+    .textContent =
+    `Compressed Mode: ${
+        compressedMode
+        ? "ON"
+        : "OFF"
+    }`;
+
+    filterGames();
+}
+
+function toggleMenu(force){
+
+    const menu =
+    document.getElementById(
+        "menuDropdown"
+    );
+
+    if(force === false){
+        menu.style.display = "none";
+        return;
+    }
+
+    menu.style.display =
+    menu.style.display === "block"
+    ? "none"
+    : "block";
+}
+
+function filterGames(){
+
+    const query =
+    document
+    .getElementById("searchBar")
+    .value
+    .toLowerCase();
+
+    renderGames(
+        games.filter(game=>
+            game.name
+            .toLowerCase()
+            .includes(query)
+        )
+    );
+}
+
+loadGames();
+</script>
+
+</body>
+</html>
